@@ -1,0 +1,100 @@
+<html>
+<head>
+    <title>Number Recognizer (0-9)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+</head>
+<body onload = "init()">
+    <h1 style = "font-variant: small-caps; font-family: cursive; font-style: oblique;">Number Recognizer</h1>
+    <p style = "font-family: cursive; font-weight: bolder;">Draw a number from 0-9 in the box below, and click "Recognize" for a recognization.</p>
+    <div style = "display: flex">
+        <canvas id = "myCanvas" width = "120" height = "120" style = "border: 1.5px solid black"></canvas>
+        <div id = "Recognition" style = "margin: 10px; font-family: serif; font-weight: bold; font-size: 85px; text-align: center;"></div>
+        <div id = "Confidence" style = "font-family: monospace; font-weight: bold; font-size: 20px; text-align:center;"></div>
+    </div>
+    <button onclick = "clearCanvas()" style="margin-top: 10px; background-color:pink; font-family: cursive; border: 1px solid black">Clear</button>
+    <button onclick = "recognizeNumber()" style = "margin-top: 10px; background-color:peachpuff; font-family: cursive; border: 1px solid black">Recognize</button>
+    <script>
+        var canvas;
+        var ctx;
+        var model;
+        var start_drawing = false;
+        var prev_x, prev_y;
+
+        async function loadModel() {
+            model = await tf.loadLayersModel("http://localhost:8080/mnist/mnist_model.json");
+        }
+
+        function init() {
+            canvas = document.getElementById("myCanvas");
+            ctx = canvas.getContext("2d");
+
+            loadModel();
+
+            canvas.onmousemove = onMouseMove;                      
+            canvas.onmousedown = onMouseDown;
+            canvas.onmouseup = onMouseUp;
+        }      
+
+        function onMouseMove(e) { 
+            if (start_drawing) {
+                const x = e.clientX - canvas.offsetLeft;
+                const y = e.clientY - canvas.offsetTop;
+
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = "black";
+                    
+                ctx.beginPath();
+                ctx.moveTo(prev_x, prev_y);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                prev_x = x;
+                prev_y = y;
+            }
+        }
+
+        function onMouseDown(e) {
+            start_drawing = true;
+            prev_x = e.clientX - canvas.offsetLeft;
+            prev_y = e.clientY - canvas.offsetTop;
+        }
+
+        function onMouseUp(e) {
+            start_drawing = false;
+        }
+
+        function recognizeNumber() {
+            var image = ctx.getImageData(0, 0, 120, 120);
+            var t = tf.browser.fromPixels(image, 1);
+            var tfimg = tf.image.resizeBilinear(t, [28, 28]);
+            tfimg = tf.cast(tfimg, 'float32');
+            tfimg = tf.abs(tfimg.sub(tf.scalar(255))).div(tf.scalar(255)).flatten();
+            tfimg = tfimg.reshape([1, 28, 28, 1]);
+            recognizer(tfimg);
+        }
+
+        function recognizer(num_img) {
+            var result = model.predict(num_img).dataSync();
+            var max = 0.0;
+            var maxi = 0;
+            var i;
+            for (i = 0; i < 10; i ++) {
+                if (result[i] > max) {
+                    max = result[i];
+                    maxi = i;
+                }
+            }
+            document.getElementById("Recognition").innerHTML = maxi;
+            document.getElementById("Confidence").innerHTML = "(Confidence Percentage: " + Math.round(max*100) + '%)';
+        }
+
+        function clearCanvas() {
+            start_drawing = false;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 120, 120);
+            document.getElementById("Recognition").innerHTML = '';
+            document.getElementById('Confidence').innerHTML = '';
+        }
+
+    </script>
+</body>
+</html>
